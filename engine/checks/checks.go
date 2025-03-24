@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 // checks for each service
@@ -20,18 +18,18 @@ type Runner interface {
 
 // services will inherit Service so that config.Config can be read from file, but will not be used after initial read
 type Service struct {
-	Name         string         `toml:"-"`          // Name is the box name plus the service (ex. lunar-dns)
-	Display      string         `toml:",omitempty"` // Display is the name of the service (ex. dns)
-	CredLists    pq.StringArray `toml:",omitempty"`
-	Port         int            `toml:",omitzero"` // omitzero because custom checks might not specify port, and shouldn't be assigned 0
-	Points       int            `toml:",omitempty"`
-	Timeout      int            `toml:",omitempty"`
-	SlaPenalty   int            `toml:",omitempty"`
-	SlaThreshold int            `toml:",omitempty"`
-	LaunchTime   time.Time      `toml:",omitempty"`
-	StopTime     time.Time      `toml:",omitempty"`
-	Disabled     bool           `toml:",omitempty"`
-	Target       string         `toml:",omitempty"`
+	Name         string    `toml:"-"`          // Name is the box name plus the service (ex. lunar-dns)
+	Display      string    `toml:",omitempty"` // Display is the name of the service (ex. dns)
+	CredLists    []string  `toml:",omitempty"`
+	Port         int       `toml:",omitzero"` // omitzero because custom checks might not specify port, and shouldn't be assigned 0
+	Points       int       `toml:",omitempty"`
+	Timeout      int       `toml:",omitempty"`
+	SlaPenalty   int       `toml:",omitempty"`
+	SlaThreshold int       `toml:",omitempty"`
+	LaunchTime   time.Time `toml:",omitempty"`
+	StopTime     time.Time `toml:",omitempty"`
+	Disabled     bool      `toml:",omitempty"`
+	Target       string    `toml:",omitempty"`
 }
 
 type Result struct {

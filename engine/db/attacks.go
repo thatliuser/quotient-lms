@@ -19,7 +19,7 @@ type AttackSchema struct {
 	BoxID          uint
 	TeamID         uint
 	Narrative      string
-	EvidenceImages []string `gorm:"type:text[]"` // /submissions/red/teamID/boxID/image.png
+	EvidenceImages []AttackImageSchema `gorm:"foreignKey:AttackBoxID,AttackTeamID;references:BoxID,TeamID"` // /submissions/red/teamID/boxID/image.png
 	Vulnerable     bool
 	AccessLevel    int
 
@@ -27,6 +27,12 @@ type AttackSchema struct {
 	DataAccessPassword            bool
 	DataAccessSystemConfiguration bool
 	DataAccessDatabase            bool
+}
+
+type AttackImageSchema struct {
+	AttackBoxID  uint   `gorm:"primaryKey"`
+	AttackTeamID uint   `gorm:"primaryKey"`
+	URI          string `gorm:"primaryKey"`
 }
 
 func GetAttacks() ([]AttackSchema, error) {

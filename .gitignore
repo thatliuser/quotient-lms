@@ -4,6 +4,7 @@
 *.conf
 *.exe
 *.log
+quotient.db
 quotient
 
 /config/*

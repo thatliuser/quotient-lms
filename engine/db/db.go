@@ -6,11 +6,13 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 
 	"quotient/engine/config"
 
 	"github.com/go-ldap/ldap/v3"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -18,6 +20,14 @@ import (
 var (
 	db *gorm.DB
 )
+
+func dialector(connectURL string) gorm.Dialector {
+	if strings.ToLower(connectURL) == "sqlite" {
+		return sqlite.Open("quotient.db?mode=rwc")
+	} else {
+		return postgres.Open(connectURL)
+	}
+}
 
 func Connect(connectURL string) {
 	var err error
@@ -29,20 +39,20 @@ func Connect(connectURL string) {
 		},
 	)
 
-	db, err = gorm.Open(postgres.Open(connectURL), &gorm.Config{
+	db, err = gorm.Open(dialector(connectURL), &gorm.Config{
 		TranslateError: true,
 		Logger:         newLogger,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect database! %s", connectURL)
+		log.Fatalf("Failed to connect database '%s', error: %s", connectURL, err)
 	}
 
 	slog.Info("Connected to DB")
 
-	err = db.AutoMigrate(&AnnouncementSchema{},
+	err = db.AutoMigrate(&AnnouncementSchema{}, &AnnouncementFileSchema{},
 		&TeamSchema{}, &RoundSchema{}, &ServiceCheckSchema{}, &SLASchema{}, &ManualAdjustmentSchema{},
 		&InjectSchema{}, &SubmissionSchema{},
-		&VulnSchema{}, &BoxSchema{}, &VectorSchema{}, &AttackSchema{})
+		&VulnSchema{}, &BoxSchema{}, &BoxPortSchema{}, &VectorSchema{}, &AttackSchema{}, &AttackImageSchema{})
 	if err != nil {
 		log.Fatalln("Failed to auto migrate:", err)
 	}

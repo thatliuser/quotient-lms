@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -13,7 +12,12 @@ type AnnouncementSchema struct {
 	Title                 string `gorm:"unique"` // also used as directory name
 	Description           string
 	OpenTime              time.Time
-	AnnouncementFileNames pq.StringArray `gorm:"type:text[]"`
+	AnnouncementFileNames []AnnouncementFileSchema `gorm:"foreignKey:AnnouncementID"`
+}
+
+type AnnouncementFileSchema struct {
+	AnnouncementID uint   `gorm:"primaryKey"`
+	FileName       string `gorm:"primaryKey"`
 }
 
 // CreateAnnouncement creates a new announcement in the database using the provided schema

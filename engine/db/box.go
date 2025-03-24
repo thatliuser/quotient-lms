@@ -4,18 +4,22 @@ import (
 	"errors"
 	"quotient/engine/config"
 
-	"github.com/lib/pq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type BoxSchema struct {
 	ID       uint
-	IP       string        `gorm:"unique"`
-	Ports    pq.Int32Array `gorm:"type:int[]"`
+	IP       string          `gorm:"unique"`
+	Ports    []BoxPortSchema `gorm:"foreignKey:BoxID"`
 	Hostname string
 	Vectors  []VectorSchema `gorm:"foreignKey:BoxID"`
 	Attacks  []AttackSchema `gorm:"foreignKey:BoxID"`
+}
+
+type BoxPortSchema struct {
+	BoxID uint `gorm:"primaryKey"`
+	Port  uint `gorm:"primaryKey"`
 }
 
 func LoadBoxes(config *config.ConfigSettings) error {
@@ -51,7 +55,7 @@ func GetBoxes() ([]BoxSchema, error) {
 // Sets the default value for Ports to an empty slice so that it is not nil
 func (box *BoxSchema) AfterFind(*gorm.DB) error {
 	if box.Ports == nil {
-		box.Ports = []int32{}
+		box.Ports = []BoxPortSchema{}
 	}
 	return nil
 }
