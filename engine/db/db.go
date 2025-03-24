@@ -51,7 +51,7 @@ func Connect(connectURL string) {
 
 	err = db.AutoMigrate(&AnnouncementSchema{}, &AnnouncementFileSchema{},
 		&TeamSchema{}, &RoundSchema{}, &ServiceCheckSchema{}, &SLASchema{}, &ManualAdjustmentSchema{},
-		&InjectSchema{}, &SubmissionSchema{},
+		&InjectSchema{}, &InjectFileSchema{}, &SubmissionSchema{},
 		&VulnSchema{}, &BoxSchema{}, &BoxPortSchema{}, &VectorSchema{}, &AttackSchema{}, &AttackImageSchema{})
 	if err != nil {
 		log.Fatalln("Failed to auto migrate:", err)
