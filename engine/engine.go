@@ -152,6 +152,10 @@ func (se *ScoringEngine) ResetScores() error {
 	se.CurrentRound = 1
 	se.UptimePerService = make(map[uint]map[string]db.Uptime)
 	se.SlaPerService = make(map[uint]map[string]int)
+	if err := os.RemoveAll("submissions/pcrs"); err != nil {
+		slog.Error("failed to delete pcr folder", "error", err)
+		return fmt.Errorf("failed to delete pcr folder: %v", err)
+	}
 	slog.Info("scores reset successfully")
 	return nil
 }
