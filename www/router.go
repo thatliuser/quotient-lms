@@ -119,6 +119,7 @@ func (router *Router) Start() {
 
 	mux.HandleFunc("POST /api/engine/pause", ADMINAUTH(api.PauseEngine))
 	mux.HandleFunc("GET /api/engine/reset", ADMINAUTH(api.ResetScores))
+	mux.HandleFunc("GET /api/engine/refresh", ADMINAUTH(api.RefreshServices))
 	mux.HandleFunc("GET /api/engine", ADMINAUTH(api.GetEngine))
 	mux.HandleFunc("POST /api/admin/teams", ADMINAUTH(api.UpdateTeams))
 

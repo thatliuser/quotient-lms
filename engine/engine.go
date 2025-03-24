@@ -156,6 +156,22 @@ func (se *ScoringEngine) ResetScores() error {
 	return nil
 }
 
+// RefreshServices resets the engine and reloads the configuration file from disk
+func (se *ScoringEngine) RefreshServices() error {
+	if err := se.ResetScores(); err != nil {
+		return fmt.Errorf("failed to refresh services: %v", err)
+	}
+
+	conf := config.ConfigSettings{}
+	if err := conf.SetConfig("./config/event.conf"); err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	se.Config = &conf
+
+	return nil
+}
+
 // perform a round of koth
 func (se *ScoringEngine) koth() {
 	// enginePauseWg.Wait()

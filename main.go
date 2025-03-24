@@ -43,7 +43,7 @@ func main() {
 	// read config file
 	conf := config.ConfigSettings{}
 	if err := conf.SetConfig("./config/event.conf"); err != nil {
-		log.Fatalf("Error reading config file: %v", err)
+		log.Fatalf("Error reading or setting config file: %v", err)
 		return
 	}
 

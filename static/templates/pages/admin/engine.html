@@ -8,6 +8,7 @@
                         <h3>Engine Controls</h3>
                         <button id="pauseButton" class="btn rounded-0"></button>
                         <button id="resetButton" class="btn btn-danger rounded-0">Reset Scores</button>
+                        <button id="refreshButton" class="btn btn-danger rounded-0">Refresh Services</button>
                     </div>
                 </div>
                 <div class="row mb-3">
@@ -80,6 +81,24 @@
                                 })
                                 .catch(error => {
                                     console.error('Error resetting engine:', error)
+                                });
+                        }
+                    });
+
+                    document.getElementById('refreshButton').addEventListener('click', () => {
+                        if (confirm("This will reset all scores and the reload the configuration file. Are you sure?")) {
+                            fetch('/api/engine/refresh')
+                                .then(response => response.json())
+                                .then((data) => {
+                                    if (data.status == "success") {
+                                        window.location.reload()
+                                    }
+                                    else {
+                                        alert('Error refreshing config: ' + data.error)
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error refreshing config:', error)
                                 });
                         }
                     });

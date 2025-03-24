@@ -43,6 +43,31 @@ func ResetScores(w http.ResponseWriter, r *http.Request) {
 	w.Write(d)
 }
 
+func RefreshServices(w http.ResponseWriter, r *http.Request) {
+	type Response struct {
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	slog.Debug("refresh services requested")
+	response := Response{
+		Status: "success",
+	}
+	if err := eng.RefreshServices(); err != nil {
+		response = Response{
+			Status: "error",
+			Error:  err.Error(),
+		}
+	}
+
+	bytes, err := json.Marshal(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(bytes)
+}
+
 func ExportScores(w http.ResponseWriter, r *http.Request) {
 	type TeamScore struct {
 		TeamID        uint   `json:"team_id"`

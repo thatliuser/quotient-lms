@@ -119,9 +119,28 @@ func AddTeams(conf *config.ConfigSettings) error {
 }
 
 func ResetScores() error {
-	// truncate servicecheckschemas, slaschemas, and roundschemas with cascade
-	if err := db.Exec("TRUNCATE TABLE service_check_schemas, round_schemas, sla_schemas CASCADE").Error; err != nil {
-		return err
+	if db.Dialector.Name() == "sqlite" {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			// https://gorm.io/docs/delete.html#Block-Global-Delete
+			if err := tx.Where("1 = 1").Delete(&ServiceCheckSchema{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("1 = 1").Delete(&RoundSchema{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("1 = 1").Delete(&SLASchema{}).Error; err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			return err
+		}
+	} else {
+		// truncate servicecheckschemas, slaschemas, and roundschemas with cascade
+		if err := db.Exec("TRUNCATE TABLE service_check_schemas, round_schemas, sla_schemas CASCADE").Error; err != nil {
+			return err
+		}
 	}
 
 	return nil
