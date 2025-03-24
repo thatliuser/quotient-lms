@@ -38,6 +38,8 @@ func (c Dns) Run(teamID uint, teamIdentifier string, resultsChan chan Result) {
 			msg.SetQuestion(fqdn, dns.TypeA)
 		case "MX":
 			msg.SetQuestion(fqdn, dns.TypeMX)
+		case "CNAME":
+			msg.SetQuestion(fqdn, dns.TypeCNAME)
 		}
 
 		// Make it obey timeout via deadline
