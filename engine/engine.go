@@ -166,6 +166,9 @@ func (se *ScoringEngine) ResetScores() error {
 		return fmt.Errorf("failed to delete pcr folder: %v", err)
 	}
 	slog.Info("scores reset successfully")
+	if err := se.LoadCredentials(); err != nil {
+		return fmt.Errorf("failed to reload credentials: %v", err)
+	}
 	return nil
 }
 
@@ -173,9 +176,6 @@ func (se *ScoringEngine) ResetScores() error {
 func (se *ScoringEngine) RefreshServices() error {
 	if err := se.ResetScores(); err != nil {
 		return fmt.Errorf("failed to refresh services: %v", err)
-	}
-	if err := se.LoadCredentials(); err != nil {
-		return fmt.Errorf("failed to reload credentials: %v", err)
 	}
 
 	conf := config.ConfigSettings{}
