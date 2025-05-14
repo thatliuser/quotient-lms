@@ -77,7 +77,7 @@ func (se *ScoringEngine) Start() {
 		log.Fatalf("failed to get teams:", "error", err)
 	}
 	for _, team := range teams {
-		db.UpdateTeam(team.ID, string(team.ID), true)
+		db.UpdateTeam(team.ID, fmt.Sprintf("%v", team.ID), true)
 	}
 
 	se.NextRoundStartTime = time.Time{}
