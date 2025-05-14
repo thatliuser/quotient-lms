@@ -71,6 +71,15 @@ func (se *ScoringEngine) Start() {
 		se.EnginePauseWg.Add(1)
 	}
 
+	// automatically set team identifiers
+	teams, err := db.GetTeams()
+	if err != nil {
+		log.Fatalf("failed to get teams:", "error", err)
+	}
+	for _, team := range teams {
+		db.UpdateTeam(team.ID, string(team.ID), true)
+	}
+
 	se.NextRoundStartTime = time.Time{}
 
 	// engine loop
