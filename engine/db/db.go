@@ -171,6 +171,5 @@ func extractNumber(name string) uint {
 	if err != nil {
 		return 0
 	}
-	log.Println("team %s id %s", name, n)
 	return uint(n)
 }
