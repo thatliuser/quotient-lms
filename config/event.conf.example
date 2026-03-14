@@ -1,72 +1,493 @@
+# =============================================================================
+# Quotient Scoring Engine - Sample Configuration
+# =============================================================================
+# This file demonstrates every supported section, service type, and key.
+# Keys marked [REQUIRED] must be set. All others are optional with the
+# indicated defaults.
+#
+# The "_" character in IP addresses, hostnames, and DNS fields is replaced at
+# runtime with each team's unique identifier string.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# [RequiredSettings] - Core engine settings (REQUIRED)
+# -----------------------------------------------------------------------------
 [RequiredSettings]
-  EventName = "Example"
+
+  # [REQUIRED] Human-readable name of the competition event.
+  EventName = "Sample CTF 2026"
+
+  # [REQUIRED] Competition type. Must be "rvb" (Red vs Blue) or "koth" (King of the Hill).
   EventType = "rvb"
+
+  # [REQUIRED*] PostgreSQL connection string.
+  # *If omitted, falls back to environment variables: POSTGRES_USER, POSTGRES_PASSWORD,
+  # POSTGRES_HOST, and POSTGRES_DB.
   DBConnectURL = "postgres://engineuser:postgres_password@quotient_database:5432/engine"
+
+  # [REQUIRED] IP address to bind the web server to.
   BindAddress = "0.0.0.0"
 
-[MiscSettings]
-  EasyPCR = true
-  ShowDebugToBlueTeam = false
-  LogoImage = "/static/assets/quotient.svg"
-  StartPaused = true
-  Delay = 30
-  Jitter = 5
-  Points = 1
-  Timeout = 15
-  SlaThreshold = 5
-  SlaPenalty = 5
 
+# -----------------------------------------------------------------------------
+# [CredlistSettings] - Credential list definitions (optional)
+# -----------------------------------------------------------------------------
+# Credlists are CSV files (username,password) stored in ./config/credlists/.
+# Teams can update them via Password Change Requests (PCRs).
 [CredlistSettings]
+
   [[CredlistSettings.Credlist]]
+    # Human-readable name for this credlist. Used to reference it from service checks.
+    # Default: value of CredlistPath
     CredlistName = "Users"
+
+    # [REQUIRED] Filename of the .credlist CSV file in ./config/credlists/.
     CredlistPath = "users.credlist"
+
+    # Explanation text shown in the UI describing the credlist format.
+    # Default: "username,password"
     CredlistExplainText = "username,password"
+
   [[CredlistSettings.Credlist]]
     CredlistName = "Admins"
     CredlistPath = "admins.credlist"
     CredlistExplainText = "username,password"
 
-[[Admin]]
-  Name = "admin"
-  Pw = "admin"
 
+# -----------------------------------------------------------------------------
+# [LdapSettings] - LDAP authentication for the web UI (optional)
+# -----------------------------------------------------------------------------
+# When configured, users can authenticate to the Quotient web UI via LDAP
+# instead of (or in addition to) local accounts defined below.
+[LdapSettings]
+
+  # LDAP server URL.
+  LdapConnectUrl = "ldap://ldap.example.org:389"
+
+  # Bind DN for the LDAP service account.
+  LdapBindDn = "cn=admin,dc=example,dc=org"
+
+  # Password for the LDAP bind DN.
+  LdapBindPassword = "ldap_password"
+
+  # Base DN for searching user accounts.
+  LdapSearchBaseDn = "ou=users,dc=example,dc=org"
+
+  # Group DN whose members are granted admin role.
+  LdapAdminGroupDn = "cn=admins,ou=groups,dc=example,dc=org"
+
+  # Group DN whose members are granted red team role.
+  LdapRedGroupDn = "cn=redteam,ou=groups,dc=example,dc=org"
+
+  # Group DN whose members are granted blue team role.
+  LdapTeamGroupDn = "cn=blueteam,ou=groups,dc=example,dc=org"
+
+
+# -----------------------------------------------------------------------------
+# [SslSettings] - HTTPS configuration (optional)
+# -----------------------------------------------------------------------------
+# If this section is present, BOTH httpscert and httpskey are required.
+[SslSettings]
+
+  # Path to the HTTPS certificate file.
+  httpscert = "/path/to/cert.pem"
+
+  # Path to the HTTPS private key file.
+  httpskey = "/path/to/key.pem"
+
+
+# -----------------------------------------------------------------------------
+# [MiscSettings] - Scoring parameters, timing, and UI (optional)
+# -----------------------------------------------------------------------------
+[MiscSettings]
+
+  # Enable simplified password change requests for blue teams.
+  # Default: false
+  EasyPCR = true
+
+  # Show debug output of service checks to blue team members.
+  # Default: false
+  ShowDebugToBlueTeam = false
+
+  # Web server port.
+  # Default: 443 if SslSettings is configured, otherwise 80
+  Port = 8080
+
+  # Path to logo image displayed in the UI.
+  # Default: "/static/assets/quotient.svg"
+  LogoImage = "/static/assets/quotient.svg"
+
+  # Path to a log file. Empty string means no file logging.
+  # Default: ""
+  LogFile = ""
+
+  # Start the engine in paused state (requires manual unpause to begin scoring).
+  # Default: false
+  StartPaused = true
+
+  # Seconds between scoring rounds.
+  # Default: 60
+  Delay = 60
+
+  # Maximum random jitter (seconds) added to or subtracted from the delay.
+  # Must be strictly less than Delay.
+  # Default: 5
+  Jitter = 5
+
+  # Default points awarded per successful service check.
+  # Default: 1
+  Points = 1
+
+  # Default timeout (seconds) for each service check.
+  # Must be less than (Delay - Jitter).
+  # Default: Delay / 2
+  Timeout = 25
+
+  # Number of consecutive check failures before an SLA penalty is applied.
+  # Default: 5
+  SlaThreshold = 5
+
+  # Points deducted when an SLA violation occurs.
+  # Default: SlaThreshold * Points
+  SlaPenalty = 5
+
+
+# -----------------------------------------------------------------------------
+# [UISettings] - UI visibility controls (optional)
+# -----------------------------------------------------------------------------
+[UISettings]
+
+  # Allow unauthenticated (public) access to score graphs.
+  # Default: false
+  EnablePublicGraphs = false
+
+  # Hide score graphs from blue team members.
+  # Default: false
+  DisableGraphsForBlueTeam = false
+
+  # Show announcements to red team members.
+  # Default: false
+  ShowAnnouncementsForRedTeam = false
+
+
+# -----------------------------------------------------------------------------
+# [[Admin]] - Admin user accounts (optional, repeatable)
+# -----------------------------------------------------------------------------
+[[Admin]]
+  Name = "admin"       # [REQUIRED] Username
+  Pw   = "changeme"    # [REQUIRED] Password
+
+# -----------------------------------------------------------------------------
+# [[Red]] - Red team user accounts (optional, repeatable)
+# -----------------------------------------------------------------------------
+[[Red]]
+  Name = "redteam"     # [REQUIRED] Username
+  Pw   = "changeme"    # [REQUIRED] Password
+
+# -----------------------------------------------------------------------------
+# [[Team]] - Blue team user accounts (optional, repeatable)
+# -----------------------------------------------------------------------------
 [[Team]]
-  Name = "team01"
-  Pw = "password"
+  Name = "team01"      # [REQUIRED] Username
+  Pw   = "password"    # [REQUIRED] Password
 
 [[Team]]
   Name = "team02"
-  Pw = "password"
+  Pw   = "password"
 
-[[Team]]
-  Name = "team03"
-  Pw = "password"
 
+# =============================================================================
+# [[Box]] - Target machines (optional, repeatable)
+# =============================================================================
+# Each box represents a scored machine. The "_" in the IP field is replaced
+# with the team identifier at runtime (e.g. "10.100.1_.2" becomes "10.100.11.2"
+# for team with identifier "1").
+#
+# Service checks are nested under each box as [[Box.<ServiceType>]].
+#
+# --- Shared keys available on ALL service types ---
+#
+#   Display        (string)    Display name appended to box name. Default: lowercase service type.
+#   CredLists      ([]string)  Array of credlist names to use for authentication.
+#   Port           (int)       Port number. Default varies by type.
+#   Points         (int)       Points per successful check. Default: MiscSettings.Points.
+#   Timeout        (int)       Timeout in seconds. Default: MiscSettings.Timeout.
+#   SlaPenalty     (int)       SLA penalty points. Default: MiscSettings.SlaPenalty.
+#   SlaThreshold   (int)       Consecutive failures before SLA penalty. Default: MiscSettings.SlaThreshold.
+#   LaunchTime     (datetime)  When this check starts being scored.
+#   StopTime       (datetime)  When this check stops being scored.
+#   Disabled       (bool)      Disable this check entirely. Default: false.
+#   Target         (string)    Override target IP/hostname (instead of the box IP).
+#   Attempts       (int)       Number of retry attempts per round. Default: 1.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Box 1: Demonstrates Ping, TCP, and Custom checks
+# -----------------------------------------------------------------------------
 [[Box]]
-  Name = "leto"
-  IP = "172.19.12_.22"
+  Name = "gateway"                       # [REQUIRED] Unique box name
+  IP   = "10.100.1_.1"                   # [REQUIRED] IP with "_" team placeholder
 
+  # --- Ping ---
+  # ICMP ping check. No authentication.
+  # Default port: N/A (ICMP)
+  [[Box.Ping]]
+    Display        = "ping"              # Display name. Default: "ping"
+    Points         = 1                   # Points per success. Default: MiscSettings.Points
+    Timeout        = 10                  # Timeout in seconds. Default: MiscSettings.Timeout
+    SlaPenalty     = 5                   # SLA penalty. Default: MiscSettings.SlaPenalty
+    SlaThreshold   = 5                   # Failures before SLA. Default: MiscSettings.SlaThreshold
+    Disabled       = false               # Disable this check. Default: false
+    Attempts       = 1                   # Retry attempts. Default: 1
+    Count          = 3                   # Number of ICMP packets to send. Default: 1
+    AllowPacketLoss = false              # Use percentage-based pass/fail. Default: false
+    Percent        = 0                   # Max acceptable packet loss %. Only used if AllowPacketLoss = true. Default: 0
+
+  # --- TCP ---
+  # Simple TCP connectivity check. No additional fields.
+  # Default port: NONE (Port is REQUIRED for TCP checks)
   [[Box.Tcp]]
-    Display = "cyclopes"
-    Port = 4444
+    Display = "backdoor"
+    Port    = 4444                       # [REQUIRED] TCP port to connect to
 
-[[Box]]
-  Name = "atlas"
-  IP = "172.19.12_.25"
-
+  # --- Custom ---
+  # Runs an arbitrary shell command. Exit code 0 = success unless Regex is set.
+  # Supported placeholders in Command: ROUND, TARGET, TEAMIDENTIFIER, USERNAME, PASSWORD
+  # Default port: N/A (not used)
   [[Box.Custom]]
-    Display = "cassandra"
-    CredLists = ["Users", "Admins"]
-    Command = "/app/checks/example.sh ROUND TARGET TEAMIDENTIFIER USERNAME PASSWORD"
+    Display   = "healthcheck"
+    CredLists = ["Users"]                # Credlists for USERNAME/PASSWORD placeholders
+    Command   = "/app/checks/health.sh ROUND TARGET TEAMIDENTIFIER USERNAME PASSWORD"  # [REQUIRED] Shell command
+    Regex     = "OK"                     # Regex to match against command output. Default: "" (use exit code)
 
+
+# -----------------------------------------------------------------------------
+# Box 2: Demonstrates DNS, Web, and FTP checks
+# -----------------------------------------------------------------------------
 [[Box]]
-  Name = "titan"
-  IP = "172.19.12_.27"
+  Name = "webserver"
+  IP   = "10.100.1_.2"
 
-  [[Box.Smtp]]
-    Display = "marpessa"
+  # --- DNS ---
+  # Queries DNS records and verifies the answers.
+  # Default port: 53
+  [[Box.Dns]]
+    Display = "dns"
+    Port    = 53                         # DNS port. Default: 53
+
+    # [REQUIRED] At least one DNS record to check.
+    [[Box.Dns.Record]]
+      Kind   = "A"                       # Record type: "A" or "MX"
+      Domain = "www.team_.example.com"   # Domain to query ("_" is team placeholder)
+      Answer = ["10.100.1_.2"]           # Expected answer(s) ("_" is team placeholder)
+
+    [[Box.Dns.Record]]
+      Kind   = "MX"
+      Domain = "team_.example.com"
+      Answer = ["mail.team_.example.com"]
+
+  # --- Web ---
+  # HTTP/HTTPS check. Fetches URLs and validates status codes, regex matches, or diffs.
+  # Default port: 80 (http) or 443 (https)
+  [[Box.Web]]
+    Display = "web"
+    Scheme  = "http"                     # URL scheme: "http" or "https". Default: "http"
+    Port    = 80                         # Default: 443 if Scheme is "https", else 80
+
+    # [REQUIRED] At least one URL to check.
+    [[Box.Web.Url]]
+      Path        = "/"                  # URL path. Default: "/"
+      Status      = 200                  # Expected HTTP status code. Default: 0 (any status OK)
+      Regex       = "<title>Welcome</title>"  # Regex to match against page body. Default: ""
+      Diff        = 0                    # Max percentage difference vs CompareFile. Default: 0
+      CompareFile = ""                   # File to compare page content against (required if Diff > 0). Default: ""
+
+    [[Box.Web.Url]]
+      Path   = "/api/health"
+      Status = 200
+
+  # --- FTP ---
+  # FTP login and optional file retrieval/verification.
+  # If no CredLists, uses anonymous/anonymous.
+  # Default port: 21
+  [[Box.Ftp]]
+    Display   = "ftp"
     CredLists = ["Users"]
+    Port      = 21                       # Default: 21
 
-  [[Box.Tcp]]
-    Port = 4444
-    Display = "daphne"
+    # Optional files to retrieve and verify. Cannot set both Hash and Regex on same file.
+    [[Box.Ftp.File]]
+      Name  = "/pub/readme.txt"          # Path to the file on the FTP server
+      Hash  = ""                         # Expected SHA256 hash. Default: ""
+      Regex = "Welcome"                  # Regex to match file contents. Default: ""
+
+    [[Box.Ftp.File]]
+      Name = "/pub/config.dat"
+      Hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+
+# -----------------------------------------------------------------------------
+# Box 3: Demonstrates SSH, RDP, and VNC checks
+# -----------------------------------------------------------------------------
+[[Box]]
+  Name = "workstation"
+  IP   = "10.100.1_.3"
+
+  # --- SSH ---
+  # SSH login with optional command execution.
+  # Cannot use both PrivKey and BadAttempts simultaneously.
+  # Default port: 22
+  [[Box.Ssh]]
+    Display     = "ssh"
+    CredLists   = ["Users", "Admins"]
+    Port        = 22                     # Default: 22
+    PrivKey     = ""                     # SSH private key filename in ./config/scoredfiles/. Default: ""
+    PrivKeyUser = ""                     # Username for private key auth (required if PrivKey is set). Default: ""
+    BadAttempts = 0                      # Deliberate failed logins before real attempt. Default: 0
+
+    # Optional commands to execute after login (one chosen at random per round).
+    [[Box.Ssh.Command]]
+      Command  = "whoami"               # Shell command to execute
+      Output   = "root"                 # Expected output value. Default: ""
+      UseRegex = false                  # Match output with regex. Default: false
+      Contains = false                  # Check if output contains the string (substring match). Default: false
+
+    [[Box.Ssh.Command]]
+      Command  = "cat /etc/hostname"
+      Output   = "workstation"
+      Contains = true                   # Substring match instead of exact match
+
+  # --- RDP ---
+  # Simple TCP connectivity check to the RDP port. No protocol negotiation.
+  # No additional fields beyond the shared service keys.
+  # Default port: 3389
+  [[Box.Rdp]]
+    Display   = "rdp"
+    Port      = 3389                     # Default: 3389
+
+  # --- VNC ---
+  # VNC connection with password-only authentication.
+  # Requires CredLists (uses password only from credentials).
+  # No additional fields beyond the shared service keys.
+  # Default port: 5900
+  [[Box.Vnc]]
+    Display   = "vnc"
+    CredLists = ["Users"]
+    Port      = 5900                     # Default: 5900
+
+
+# -----------------------------------------------------------------------------
+# Box 4: Demonstrates SMTP, IMAP, POP3, and LDAP checks
+# -----------------------------------------------------------------------------
+[[Box]]
+  Name = "mailserver"
+  IP   = "10.100.1_.4"
+
+  # --- SMTP ---
+  # Sends an email to verify SMTP service.
+  # Default port: 25
+  [[Box.Smtp]]
+    Display   = "smtp"
+    CredLists = ["Users"]
+    Port      = 25                       # Default: 25
+    Encrypted = false                    # Use TLS. Default: false
+    Domain    = "@team_.example.com"     # Domain suffix appended to username for email addresses. Default: ""
+
+  # --- IMAP ---
+  # IMAP login check.
+  # Default port: 143
+  [[Box.Imap]]
+    Display   = "imap"
+    CredLists = ["Users"]
+    Port      = 143                      # Default: 143
+    Encrypted = false                    # Use TLS. Default: false
+    Domain    = "@team_.example.com"     # Domain suffix appended to username. Default: ""
+
+  # --- POP3 ---
+  # POP3 login check.
+  # Default port: 110
+  [[Box.Pop3]]
+    Display   = "pop3"
+    CredLists = ["Users"]
+    Port      = 110                      # Default: 110
+    Encrypted = false                    # Use TLS. Default: false
+    Domain    = "@team_.example.com"     # Domain suffix appended to username. Default: ""
+
+  # --- LDAP ---
+  # LDAP bind authentication check.
+  # Default port: 636
+  [[Box.Ldap]]
+    Display   = "ldap"
+    CredLists = ["Admins"]
+    Port      = 636                      # Default: 636
+    Encrypted = false                    # Use LDAPS instead of LDAP. Default: false
+    Domain    = "example.com"            # Domain for authentication binding (format: domain.tld). Default: ""
+
+
+# -----------------------------------------------------------------------------
+# Box 5: Demonstrates SMB, SQL, and WinRM checks
+# -----------------------------------------------------------------------------
+[[Box]]
+  Name = "fileserver"
+  IP   = "10.100.1_.5"
+
+  # --- SMB ---
+  # SMB login with optional share mount and file verification.
+  # If no CredLists, uses guest with empty password.
+  # Default port: 445
+  [[Box.Smb]]
+    Display   = "smb"
+    CredLists = ["Users"]
+    Port      = 445                      # Default: 445
+    Domain    = ""                       # Domain for NTLM authentication. Default: ""
+    Share     = "\\\\10.100.1_.5\\shared" # SMB share name to mount (required if checking files). Default: ""
+
+    # Optional files to retrieve and verify from the share.
+    [[Box.Smb.File]]
+      Name  = "documents/policy.txt"     # File path within the share
+      Hash  = ""                         # Expected SHA256 hash. Default: ""
+      Regex = "Acceptable Use Policy"    # Regex to match file contents. Default: ""
+
+  # --- SQL ---
+  # Database connectivity and query check.
+  # Default port: 3306
+  [[Box.Sql]]
+    Display   = "sql"
+    CredLists = ["Admins"]
+    Port      = 3306                     # Default: 3306
+    Kind      = "mysql"                  # Database driver. Default: "mysql"
+
+    # Optional queries to execute (one chosen at random per round).
+    [[Box.Sql.Query]]
+      Database = "competition"           # Database name to connect to. Default: ""
+      Command  = "SELECT name FROM flags WHERE id=1"  # SQL query. If empty, only checks connection. Default: ""
+      Output   = "flag{sample}"          # Expected output value. Default: ""
+      UseRegex = false                   # Match output with regex. Default: false
+
+    [[Box.Sql.Query]]
+      Database = "competition"
+      Command  = "SELECT COUNT(*) FROM users"
+      Output   = "\\d+"                  # Regex pattern for any number
+      UseRegex = true
+
+  # --- WinRM ---
+  # Windows Remote Management check with optional PowerShell command execution.
+  # Default port: 80 (unencrypted) or 443 (encrypted)
+  [[Box.Winrm]]
+    Display     = "winrm"
+    CredLists   = ["Admins"]
+    Port        = 5985                   # Default: 443 if Encrypted, else 80
+    Encrypted   = false                  # Use HTTPS for WinRM. Default: false
+    BadAttempts = 0                      # Deliberate failed logins before real attempt. Default: 0
+
+    # Optional PowerShell commands to execute (one chosen at random per round).
+    [[Box.Winrm.Command]]
+      Command  = "hostname"             # PowerShell command to execute
+      Output   = "fileserver"            # Expected output value. Default: ""
+      UseRegex = false                   # Match output with regex. Default: false
+
+    [[Box.Winrm.Command]]
+      Command  = "Get-Service -Name WinRM | Select-Object -ExpandProperty Status"
+      Output   = "Running"
