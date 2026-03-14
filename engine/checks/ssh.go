@@ -17,6 +17,7 @@ import (
 
 type Ssh struct {
 	Service
+	PrivKeyUser string `toml:",omitempty"`
 	PrivKey     string `toml:",omitempty"`
 	BadAttempts int    `toml:",omitzero"`
 	Command     []commandData
@@ -31,24 +32,13 @@ type commandData struct {
 
 func (c Ssh) Run(teamID uint, teamIdentifier string, roundID uint, resultsChan chan Result) {
 	definition := func(teamID uint, teamIdentifier string, checkResult Result, response chan Result) {
-
-		// Create client config
-		username, password, err := c.getCreds(teamID)
-		if err != nil {
-			checkResult.Error = "error getting creds"
-			checkResult.Debug = err.Error()
-			response <- checkResult
-			return
-		}
+		var username, password string
 
 		config := &ssh.ClientConfig{
-			User:            username,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Duration(c.Timeout) * time.Second,
 		}
-		config.SetDefaults()
-		config.Ciphers = append(config.Ciphers, "3des-cbc")
-		if c.PrivKey != "" {
+		if c.PrivKey != "" && c.PrivKeyUser != "" {
 			key, err := os.ReadFile("./config/scoredfiles/" + c.PrivKey)
 			if err != nil {
 				checkResult.Error = "error opening pubkey"
@@ -63,10 +53,21 @@ func (c Ssh) Run(teamID uint, teamIdentifier string, roundID uint, resultsChan c
 				response <- checkResult
 				return
 			}
+			username = c.PrivKeyUser
+			config.User = username
 			config.Auth = []ssh.AuthMethod{
 				ssh.PublicKeys(signer),
 			}
 		} else {
+			var err error
+			username, password, err = c.getCreds(teamID)
+			if err != nil {
+				checkResult.Error = "error getting creds"
+				checkResult.Debug = err.Error()
+				response <- checkResult
+				return
+			}
+			config.User = username
 			config.Auth = []ssh.AuthMethod{
 				ssh.Password(password),
 			}
@@ -74,7 +75,7 @@ func (c Ssh) Run(teamID uint, teamIdentifier string, roundID uint, resultsChan c
 
 		for range c.BadAttempts {
 			badConf := &ssh.ClientConfig{
-				User: username,
+				User: config.User,
 				Auth: []ssh.AuthMethod{
 					ssh.Password(uuid.New().String()),
 				},
