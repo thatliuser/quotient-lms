@@ -1,20 +1,16 @@
 package engine
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"os"
 	"sync"
 	"time"
 
 	"quotient/engine/checks"
 	"quotient/engine/config"
 	"quotient/engine/db"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type ScoringEngine struct {
@@ -27,10 +23,13 @@ type ScoringEngine struct {
 	CurrentRound          uint
 	NextRoundStartTime    time.Time
 	CurrentRoundStartTime time.Time
-	RedisClient           *redis.Client
+	Broker                *Broker
 
 	// Config update handling
 	configPath string
+
+	// Number of worker goroutines (replaces runner replicas)
+	NumWorkers int
 }
 
 func NewEngine(conf *config.ConfigSettings, configPath string) *ScoringEngine {
@@ -39,24 +38,12 @@ func NewEngine(conf *config.ConfigSettings, configPath string) *ScoringEngine {
 		panic(fmt.Sprintf("Failed to validate initial config: %v", err))
 	}
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "quotient_redis:6379"
-	}
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-	})
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		panic(fmt.Sprintf("Failed to connect to Redis: %v", err))
-	}
-
 	se := &ScoringEngine{
 		Config:           conf,
 		CredentialsMutex: make(map[uint]*sync.Mutex),
 		UptimePerService: make(map[uint]map[string]db.Uptime),
 		SlaPerService:    make(map[uint]map[string]int),
-		RedisClient:      rdb,
+		NumWorkers:       5, // default, same as old docker-compose replicas
 		configPath:       configPath,
 	}
 
@@ -99,19 +86,13 @@ func (se *ScoringEngine) Start() {
 
 	se.NextRoundStartTime = time.Time{}
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "quotient_redis:6379"
-	}
+	// Create and start the broker with worker goroutines
+	se.Broker = NewBroker(se.NumWorkers)
+	se.Broker.StartWorkers()
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-	})
-
-	events := rdb.Subscribe(context.Background(), "events")
-	defer events.Close()
-	eventsChannel := events.Channel()
+	// Subscribe for reset events
+	subID, eventsCh := se.Broker.Subscribe()
+	defer se.Broker.Unsubscribe(subID)
 
 	// engine loop
 	go func() {
@@ -119,9 +100,9 @@ func (se *ScoringEngine) Start() {
 			slog.Info("Queueing up for round", "round", se.CurrentRound)
 			se.EnginePauseWg.Wait()
 			select {
-			case msg := <-eventsChannel:
-				slog.Info("Received message", "message", msg.Payload)
-				if msg.Payload == "reset" {
+			case msg := <-eventsCh:
+				slog.Info("Received message", "message", msg)
+				if msg == "reset" {
 					slog.Info("Engine loop reset event received while waiting, quitting...")
 					return
 				} else {
@@ -150,43 +131,25 @@ func (se *ScoringEngine) Start() {
 				slog.Info(fmt.Sprintf("Round %d complete", se.CurrentRound))
 				se.CurrentRound++
 
-				se.RedisClient.Publish(context.Background(), "events", "round_finish")
+				se.Broker.Publish("round_finish")
 				slog.Info(fmt.Sprintf("Round %d will start in %s, sleeping...", se.CurrentRound, time.Until(se.NextRoundStartTime).String()))
 				time.Sleep(time.Until(se.NextRoundStartTime))
 			}
 		}
 	}()
-	waitForReset()
+	se.waitForReset()
 	slog.Info("Restarting scoring...")
 }
 
-func waitForReset() {
-	// wait for a signal to reset the engine
-	// this will block until the engine is reset
-	// this is a blocking call
-	// the engine will be reset and the loop will start again
+func (se *ScoringEngine) waitForReset() {
+	subID, eventsCh := se.Broker.Subscribe()
+	defer se.Broker.Unsubscribe(subID)
 
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "quotient_redis:6379"
-	}
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-	})
-
-	events := rdb.Subscribe(context.Background(), "events")
-	defer events.Close()
-	eventsChannel := events.Channel()
-
-	for msg := range eventsChannel {
-		slog.Info("Received message", "message", msg.Payload)
-		if msg.Payload == "reset" {
+	for msg := range eventsCh {
+		slog.Info("Received message", "message", msg)
+		if msg == "reset" {
 			slog.Info("Reset event received, quitting...")
 			return
-		} else {
-			continue
 		}
 	}
 }
@@ -197,75 +160,15 @@ func (se *ScoringEngine) GetUptimePerService() map[uint]map[string]db.Uptime {
 
 // GetActiveTasks returns all active and recently completed tasks
 func (se *ScoringEngine) GetActiveTasks() (map[string]any, error) {
-	ctx := context.Background()
-
-	// Default empty response structure
-	result := map[string]any{
-		"running":     []any{},
-		"success":     []any{},
-		"failed":      []any{},
-		"all_runners": []any{},
+	if se.Broker == nil {
+		return map[string]any{
+			"running":     []any{},
+			"success":     []any{},
+			"failed":      []any{},
+			"all_runners": []any{},
+		}, nil
 	}
-
-	// Get all task keys using a single pattern
-	allKeys, err := se.RedisClient.Keys(ctx, "task:*").Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tasks: %w", err)
-	}
-
-	// Skip if no keys found
-	if len(allKeys) == 0 {
-		return result, nil
-	}
-
-	// Use a single pipeline to get all task data in one round-trip
-	pipe := se.RedisClient.Pipeline()
-	cmds := make(map[string]*redis.StringCmd, len(allKeys))
-
-	// Queue up all GET commands at once
-	for _, key := range allKeys {
-		cmds[key] = pipe.Get(ctx, key)
-	}
-
-	// Execute the pipeline
-	_, err = pipe.Exec(ctx)
-	if err != nil && err != redis.Nil {
-		return nil, fmt.Errorf("failed to execute pipeline: %w", err)
-	}
-
-	// Use map as a set to track unique runner IDs
-	runnersSet := make(map[string]struct{})
-
-	// Process all results
-	for _, cmd := range cmds {
-		value, err := cmd.Result()
-		if err != nil {
-			continue // Skip if we can't get the task details
-		}
-
-		// Parse the value as JSON directly into a checks.Result
-		var taskStatus checks.Result
-		if err := json.Unmarshal([]byte(value), &taskStatus); err != nil {
-			continue // Skip if we can't parse the JSON
-		}
-
-		// Add runner ID to set if available
-		if taskStatus.RunnerID != "" {
-			runnersSet[taskStatus.RunnerID] = struct{}{}
-		}
-
-		// Categorize by status - directly using the status as map key for cleaner code
-		if statusKey := taskStatus.StatusText; statusKey == "running" || statusKey == "success" || statusKey == "failed" {
-			result[statusKey] = append(result[statusKey].([]any), taskStatus)
-		}
-	}
-
-	// Convert runners set to slice in one go
-	for runnerId := range runnersSet {
-		result["all_runners"] = append(result["all_runners"].([]any), runnerId)
-	}
-
-	return result, nil
+	return se.Broker.GetAllTaskStatuses(), nil
 }
 
 func (se *ScoringEngine) PauseEngine() {
@@ -284,7 +187,7 @@ func (se *ScoringEngine) ResumeEngine() {
 
 // ResetScores resets the engine to the initial state and stops the engine
 func (se *ScoringEngine) ResetScores() error {
-	slog.Info("Resetting scores and clearing Redis queues")
+	slog.Info("Resetting scores and clearing task queues")
 
 	// Reset the database
 	if err := db.ResetScores(); err != nil {
@@ -292,60 +195,38 @@ func (se *ScoringEngine) ResetScores() error {
 		return fmt.Errorf("failed to reset scores: %v", err)
 	}
 
-	// Flush Redis queues
-	ctx := context.Background()
-	keysToDelete := []string{"tasks", "results"}
-	for _, key := range keysToDelete {
-		if err := se.RedisClient.Del(ctx, key).Err(); err != nil {
-			slog.Error("Failed to clear Redis queue", "queue", key, "error", err)
-			return fmt.Errorf("failed to clear Redis queue %s: %v", key, err)
-		}
-	}
+	// Publish reset event (workers and engine loop will see this)
+	se.Broker.Publish("reset")
+
+	// Stop the broker (drains queues, stops workers)
+	se.Broker.Restart()
 
 	// Reset engine state
-	se.RedisClient.Publish(context.Background(), "events", "reset")
-
 	se.CurrentRound = 1
 	se.UptimePerService = make(map[uint]map[string]db.Uptime)
 	se.SlaPerService = make(map[uint]map[string]int)
-	slog.Info("Scores reset and Redis queues cleared successfully")
+	slog.Info("Scores reset and task queues cleared successfully")
 
 	return nil
 }
 
 // perform a round of koth
 func (se *ScoringEngine) koth() error {
-	// enginePauseWg.Wait()
-
-	// do koth stuff
 	return nil
 }
 
 // perform a round of rvb
 func (se *ScoringEngine) rvb() error {
 	// reassign the next round start time with jitter
-	// double the jitter and subtract it to get a random number between -jitter and jitter
 	randomJitter := rand.Intn(2*se.Config.MiscSettings.Jitter) - se.Config.MiscSettings.Jitter
 	jitter := time.Duration(randomJitter) * time.Second
 	se.NextRoundStartTime = time.Now().Add(time.Duration(se.Config.MiscSettings.Delay) * time.Second).Add(jitter)
 
 	slog.Info(fmt.Sprintf("round should take %s", time.Until(se.NextRoundStartTime).String()))
 
-	//
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "quotient_redis:6379"
-	}
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-	})
-
-	events := rdb.Subscribe(context.Background(), "events")
-	defer events.Close()
-	eventsChannel := events.Channel()
-	//
+	// Subscribe for reset events during this round
+	subID, eventsCh := se.Broker.Subscribe()
+	defer se.Broker.Unsubscribe(subID)
 
 	// do rvb stuff
 	teams, err := db.GetTeams()
@@ -354,9 +235,7 @@ func (se *ScoringEngine) rvb() error {
 		return err
 	}
 
-	runners := 0
-	ctx, cancel := context.WithTimeout(context.Background(), time.Until(se.NextRoundStartTime))
-	defer cancel()
+	taskCount := 0
 
 	slog.Debug("Starting service checks", "round", se.CurrentRound)
 	allRunners := se.Config.AllChecks()
@@ -364,12 +243,11 @@ func (se *ScoringEngine) rvb() error {
 		"boxes", len(se.Config.Box),
 		"runners", len(allRunners))
 
-	// Log details about each box's runners
 	for _, box := range se.Config.Box {
 		slog.Debug("Box configuration", "name", box.Name, "runners", len(box.Runners))
 	}
 
-	// 1) Enqueue
+	// 1) Enqueue tasks to the broker
 	for _, team := range teams {
 		if !team.Active {
 			continue
@@ -386,7 +264,7 @@ func (se *ScoringEngine) rvb() error {
 			if !enabled {
 				continue
 			}
-			// serialize the entire check definition to JSON
+
 			data, err := json.Marshal(r)
 			if err != nil {
 				slog.Error("failed to marshal check definition", "error", err)
@@ -401,7 +279,7 @@ func (se *ScoringEngine) rvb() error {
 				RoundID:        se.CurrentRound,
 				Deadline:       se.NextRoundStartTime,
 				Attempts:       r.GetAttempts(),
-				CheckData:      data, // the entire specialized struct
+				CheckData:      data,
 			}
 
 			payload, err := json.Marshal(task)
@@ -409,52 +287,31 @@ func (se *ScoringEngine) rvb() error {
 				slog.Error("failed to marshal service task", "error", err)
 				continue
 			}
-			se.RedisClient.RPush(ctx, "tasks", payload)
-			runners++
+			se.Broker.EnqueueTask(payload)
+			taskCount++
 		}
 	}
-	slog.Info("Enqueued checks", "count", runners)
+	slog.Info("Enqueued checks", "count", taskCount)
 
-	// 2) Collect results from Redis
-	results := make([]checks.Result, 0, runners)
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Until(se.NextRoundStartTime))
-	defer cancel()
+	// 2) Collect results from the broker
+	results := make([]checks.Result, 0, taskCount)
 
 	i := 0
-	for i < runners {
+	for i < taskCount {
 		select {
-		case msg := <-eventsChannel:
-			slog.Info("Received message", "message", msg.Payload)
-			if msg.Payload == "reset" {
+		case msg := <-eventsCh:
+			slog.Info("Received message", "message", msg)
+			if msg == "reset" {
 				slog.Info("Reset event received, quitting...")
 				return fmt.Errorf("reset event received")
-			} else {
-				continue
 			}
+			continue
 		default:
-			val, err := se.RedisClient.BLPop(timeoutCtx, time.Until(se.NextRoundStartTime), "results").Result()
-			if err == redis.Nil {
-				slog.Warn("Timeout waiting for results", "remaining", runners-i)
-				// Clear the results, since we didn't collect everything in time
+			result, ok := se.Broker.CollectResult(se.NextRoundStartTime)
+			if !ok {
+				slog.Warn("Timeout waiting for results", "remaining", taskCount-i)
 				results = []checks.Result{}
-				break
-			} else if err != nil {
-				slog.Error("Failed to fetch results from Redis:", "error", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-
-			// val[0] = "results", val[1] = JSON checks.Result
-			if len(val) < 2 {
-				slog.Warn("Malformed result from Redis", "val", val)
-				continue
-			}
-			raw := val[1]
-
-			var result checks.Result
-			if err := json.Unmarshal([]byte(raw), &result); err != nil {
-				slog.Error("Failed to unmarshal check result", "error", err)
-				continue
+				goto done
 			}
 			if result.RoundID != se.CurrentRound {
 				slog.Warn("Ignoring out of round result", "receivedRound", result.RoundID, "currentRound", se.CurrentRound)
@@ -466,6 +323,7 @@ func (se *ScoringEngine) rvb() error {
 		}
 	}
 
+done:
 	// 3) Process all collected results
 	se.processCollectedResults(results)
 	return nil
