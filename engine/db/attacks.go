@@ -21,7 +21,7 @@ type AttackSchema struct {
 	Vector         VectorSchema
 	TeamID         uint
 	Narrative      string
-	EvidenceImages []AttackImageSchema `gorm:"type:text[]"` // /submissions/red/teamID/boxID/image.png
+	EvidenceImages []AttackImageSchema `gorm:"foreignKey:AttackID"` // /submissions/red/teamID/boxID/image.png
 	AccessLevel    int
 
 	StillWorks                    bool
@@ -32,14 +32,13 @@ type AttackSchema struct {
 }
 
 type AttackImageSchema struct {
-	AttackBoxID  uint   `gorm:"primaryKey"`
-	AttackTeamID uint   `gorm:"primaryKey"`
-	URI          string `gorm:"primaryKey"`
+	AttackID uint   `gorm:"primaryKey"`
+	URI      string `gorm:"primaryKey"`
 }
 
 func GetAttacks() ([]AttackSchema, error) {
 	var attacks []AttackSchema
-	result := db.Table("attack_schemas").Find(&attacks)
+	result := db.Preload("EvidenceImages").Preload("Vector").Table("attack_schemas").Find(&attacks)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return attacks, nil

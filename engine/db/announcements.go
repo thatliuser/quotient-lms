@@ -32,7 +32,7 @@ func CreateAnnouncement(announcement AnnouncementSchema) (AnnouncementSchema, er
 // GetAnnouncements retrieves all announcements from the database
 func GetAnnouncements() ([]AnnouncementSchema, error) {
 	var announcements []AnnouncementSchema
-	result := db.Table("announcement_schemas").Order("open_time desc, id desc").Find(&announcements)
+	result := db.Preload("AnnouncementFileNames").Table("announcement_schemas").Order("open_time desc, id desc").Find(&announcements)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return announcements, nil
