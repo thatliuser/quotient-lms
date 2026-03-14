@@ -6,6 +6,8 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"quotient/engine/config"
@@ -64,6 +66,13 @@ func Connect(connectURL string) {
 func AddTeams(conf *config.ConfigSettings) error {
 	for _, team := range conf.Team {
 		t := TeamSchema{Name: team.Name, Active: true}
+
+		// Try to extract a number from the team name to use as the ID and Identifier
+		if id := extractNumber(team.Name); id > 0 {
+			t.ID = id
+			t.Identifier = strconv.FormatUint(uint64(id), 10)
+		}
+
 		result := db.Where("name = ?", team.Name).First(&t)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -147,4 +156,21 @@ func ResetScores() error {
 	}
 
 	return nil
+}
+
+// extractNumber finds the first number in a string and returns it as a uint.
+// Returns 0 if no number is found.
+// e.g. "Team3" -> 3, "blue-team-12" -> 12, "nodigits" -> 0
+func extractNumber(name string) uint {
+	re := regexp.MustCompile(`\d+`)
+	match := re.FindString(name)
+	if match == "" {
+		return 0
+	}
+	n, err := strconv.ParseUint(match, 10, 64)
+	if err != nil {
+		return 0
+	}
+	log.Println("team %s id %s", name, n)
+	return uint(n)
 }
