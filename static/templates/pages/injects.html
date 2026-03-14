@@ -527,8 +527,8 @@
                     for (const file of inject.InjectFileNames) {
                         let li = document.createElement("li")
                         let a = document.createElement("a")
-                        a.href = `/injects/${inject.ID}/${file}`
-                        a.textContent = file
+                        a.href = `/injects/${inject.ID}/${file.FileName}`
+                        a.textContent = file.FileName
                         a.target = "_blank"
                         li.appendChild(a)
                         ul.appendChild(li)

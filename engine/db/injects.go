@@ -35,7 +35,7 @@ func CreateInject(inject InjectSchema) (InjectSchema, error) {
 // GetInjects retrieves all injects from the database
 func GetInjects() ([]InjectSchema, error) {
 	var injects []InjectSchema
-	result := db.Table("inject_schemas").Order("open_time desc, id desc").Find(&injects)
+	result := db.Preload("InjectFileNames").Table("inject_schemas").Order("open_time desc, id desc").Find(&injects)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return injects, nil
