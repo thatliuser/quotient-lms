@@ -63,8 +63,8 @@ func Connect(connectURL string) {
 
 func AddTeams(conf *config.ConfigSettings) error {
 	for _, team := range conf.Team {
-		t := TeamSchema{Name: team.Name}
-		result := db.Where(&t).First(&t)
+		t := TeamSchema{Name: team.Name, Active: true}
+		result := db.Where("name = ?", team.Name).First(&t)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				if _, err := CreateTeam(t); err != nil {
@@ -105,8 +105,8 @@ func AddTeams(conf *config.ConfigSettings) error {
 
 		for _, entry := range sr.Entries {
 			teamName := entry.GetAttributeValue("sAMAccountName")
-			t := TeamSchema{Name: teamName}
-			result := db.Where(&t).First(&t)
+			t := TeamSchema{Name: teamName, Active: true}
+			result := db.Where("name = ?", teamName).First(&t)
 			if result.Error != nil {
 				if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 					if _, err := CreateTeam(t); err != nil {
