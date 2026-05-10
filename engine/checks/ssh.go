@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -137,10 +138,10 @@ func (c Ssh) Run(teamID uint, teamIdentifier string, roundID uint, resultsChan c
 			return
 		}
 		defer func() {
-		if err := conn.Close(); err != nil {
-			slog.Error("failed to close ssh connection", "error", err)
-		}
-	}()
+			if err := conn.Close(); err != nil {
+				slog.Error("failed to close ssh connection", "error", err)
+			}
+		}()
 
 		// Create a session
 		session, err := conn.NewSession()
@@ -228,7 +229,7 @@ func (c Ssh) Run(teamID uint, teamIdentifier string, roundID uint, resultsChan c
 			checkResult.Status = true
 			checkResult.Debug = "creds used were " + username + ":" + password
 		}
-		
+
 		checkResult.Points = c.Points
 		response <- checkResult
 	}
