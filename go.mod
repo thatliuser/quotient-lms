@@ -17,7 +17,6 @@ require (
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/knadh/go-pop3 v1.0.0
-	github.com/lib/pq v1.10.9
 	github.com/masterzen/winrm v0.0.0-20240702205601-3fad6e106085
 	github.com/miekg/dns v1.1.62
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
@@ -28,7 +27,8 @@ require (
 	golang.org/x/crypto v0.33.0
 	golang.org/x/oauth2 v0.24.0
 	gorm.io/driver/postgres v1.5.9
-	gorm.io/gorm v1.25.11
+	gorm.io/driver/sqlite v1.6.0
+	gorm.io/gorm v1.30.0
 	pgregory.net/rapid v1.2.0
 )
 
@@ -67,6 +67,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	golang.org/x/mod v0.23.0 // indirect

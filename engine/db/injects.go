@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -15,8 +14,13 @@ type InjectSchema struct {
 	OpenTime        time.Time
 	DueTime         time.Time
 	CloseTime       time.Time
-	InjectFileNames pq.StringArray     `gorm:"type:text[]"`
+	InjectFileNames []InjectFileSchema `gorm:"foreignKey:InjectID"`
 	Submissions     []SubmissionSchema `gorm:"foreignKey:InjectID"`
+}
+
+type InjectFileSchema struct {
+	InjectID uint   `gorm:"primaryKey"`
+	FileName string `gorm:"primaryKey"`
 }
 
 // CreateInject creates a new inject in the database using the provided schema
@@ -31,7 +35,7 @@ func CreateInject(inject InjectSchema) (InjectSchema, error) {
 // GetInjects retrieves all injects from the database
 func GetInjects() ([]InjectSchema, error) {
 	var injects []InjectSchema
-	result := db.Table("inject_schemas").Order("open_time desc, id desc").Find(&injects)
+	result := db.Preload("InjectFileNames").Table("inject_schemas").Order("open_time desc, id desc").Find(&injects)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return injects, nil

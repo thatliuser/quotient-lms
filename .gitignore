@@ -11,6 +11,7 @@
 *.csv
 
 quotient
+quotient.db
 runner/runner
 
 /config/*
@@ -22,6 +23,7 @@ runner/runner
 !/custom-checks/example.sh
 !/custom-checks/requirements.txt
 
+/db/
 /submissions/*
 !.gitkeep
 dump.rdb
